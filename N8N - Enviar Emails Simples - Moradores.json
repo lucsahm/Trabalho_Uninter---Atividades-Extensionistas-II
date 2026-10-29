@@ -1,0 +1,564 @@
+{
+  "name": "Enviar Emails Simples - Moradores",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Cron Mensal1",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -896,
+        144
+      ],
+      "id": "8a2dd9e2-a33e-4932-9088-1a8bd43564a8"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "sheetId": "1yJ2OV1Fk_8quBGC23axmsJ5ux8mf27o3CXlj3E-g6A8",
+        "range": "Página1!A1:C",
+        "options": {}
+      },
+      "name": "1. Ler Moradores (Google Sheets)1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        32
+      ],
+      "id": "652fab24-7815-4019-86e9-d40c06581b63",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "dtUvhzNVkTKiTN66",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {
+          "reset": false
+        }
+      },
+      "name": "2. Split por Apto1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        32
+      ],
+      "id": "bccd6248-6921-4a14-a373-0f431f42101d"
+    },
+    {
+      "parameters": {
+        "functionCode": "// == CONFIG ==\nconst CORPO_NODE_NAME = \"Download corpoEmail\"; // nó que baixa corpoEmail.txt\n\n// pegar linha atual\nconst incoming = items[0].json || {};\nlet nome = incoming.nome || '';\nlet aptoRaw = incoming.apto || '';\nconst pad = a => a ? a.toString().padStart(3,'0') : '';\nconst apt = pad(aptoRaw);\n\n// carregar arquivo .txt do nó Download corpoEmail\nlet corpoText = '';\ntry {\n    const itemsCorpo = $node[CORPO_NODE_NAME].items; // array de items\n    if (itemsCorpo && itemsCorpo.length > 0 && itemsCorpo[0].binary && itemsCorpo[0].binary.data) {\n        const binData = itemsCorpo[0].binary.data.data; // base64\n        corpoText = Buffer.from(binData, 'base64').toString('utf8');\n    }\n} catch(e) {\n    corpoText = '';\n}\n\n// fallback caso não tenha arquivo\nif (!corpoText) {\n    corpoText = `<p>Olá {{nome}},</p>\n\n<p>Seguem anexos o boleto e o relatório mensal do condomínio referentes a <b>{{mesano}}</b>.</p>\n\n<p>Pedimos que confira os arquivos e, caso perceba qualquer divergência ou tenha dúvidas, basta responder este e-mail — ficaremos felizes em ajudar.</p>\n\n<p>Obrigado pela atenção e colaboração!</p>\n\n<p>Atenciosamente,<br/>\nLucas Sahm<br/>\nTel: +55 47 98491-2771</p>`;\n}\n\n// substituir placeholders {{nome}}, {{apto}} e {{mesano}}\nconst mesano = new Date().toLocaleString('pt-BR', { month: 'long', year: 'numeric' });\ncorpoText = corpoText.replace(/{{nome}}/g, nome || 'Prezado(a)')\n                     .replace(/{{apto}}/g, apt)\n                     .replace(/{{mesano}}/g, mesano);\n\n// montar saída\nitems[0].json.html = corpoText;\nitems[0].json.nome = nome;\nitems[0].json.apto = apt;\nitems[0].json.subject = `Condomínio ${mesano}${apt ? ' — ' + apt : ''}`;\nitems[0].json._corpo_template_loaded = !!corpoText;\n\nreturn [items[0]];\n"
+      },
+      "name": "3. Montar Assunto e Corpo1",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        448,
+        48
+      ],
+      "id": "0a2c95b6-ae06-42b5-9322-34d8c53a254e"
+    },
+    {
+      "parameters": {
+        "fromEmail": "vilaesmeralda2014@gmail.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ $json.subject }}",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": true,
+          "attachments": "={{ Object.keys($binary || {}).join(',') }}"
+        }
+      },
+      "name": "4. Enviar Email (SMTP)1",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1120,
+        -128
+      ],
+      "id": "36a1ff7f-abfe-40e1-9d58-79da71b25e31",
+      "webhookId": "0badf5a7-794d-4984-b6ae-596e8e326d17",
+      "credentials": {
+        "smtp": {
+          "id": "EE5J0nMJYvcyF92q",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "fileFormat": "csv",
+        "options": {}
+      },
+      "name": "5. Log Envio CSV1",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 1,
+      "position": [
+        1568,
+        48
+      ],
+      "id": "f2a300d0-6d07-4f02-9fef-a6afe4d314f7"
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1344,
+        -128
+      ],
+      "id": "4453bfd4-e5bb-47da-a60d-6c5ae9cdfe7c",
+      "name": "Wait1",
+      "webhookId": "06e7ae30-3c87-44a9-8b25-1b2730c47e56"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "queryString": "={{ $json.apto }}",
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "value": "1zsJwmV2ElUxtCUsJ8fkvmE88Ivqk6zRv",
+            "mode": "id"
+          }
+        },
+        "options": {
+          "fields": [
+            "name",
+            "id"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        0,
+        -144
+      ],
+      "id": "ae7aa83e-c277-44ab-845a-6d0f0b5b9a42",
+      "name": "Search files and folders1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "RZpdk25aeE3qhD3a",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        224,
+        -144
+      ],
+      "id": "eb7de8b7-0435-411e-9deb-d68dd16ec1fd",
+      "name": "Download file1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "RZpdk25aeE3qhD3a",
+          "name": "Google Drive account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {
+          "includeUnpaired": true
+        }
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        672,
+        -128
+      ],
+      "id": "0d90a568-c07f-4e89-a40f-2115a4d2f46c",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {
+          "includeBinaries": true
+        }
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        448,
+        -144
+      ],
+      "id": "93205b44-f058-4ee9-8f11-dbdf59ed7c56",
+      "name": "Aggregate",
+      "alwaysOutputData": true,
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1yJ2OV1Fk_8quBGC23axmsJ5ux8mf27o3CXlj3E-g6A8",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sindico",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -672,
+        144
+      ],
+      "id": "28d21e92-9db3-4b1d-8dde-b393e2da527b",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "dtUvhzNVkTKiTN66",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "deleteFile",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.fileId }}",
+          "mode": "id"
+        },
+        "options": {
+          "deletePermanently": false
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2016,
+        -144
+      ],
+      "id": "68452140-5d2d-4825-9dd9-7c28748dab07",
+      "name": "Delete a file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "RZpdk25aeE3qhD3a",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const mergeItem = $('Merge1').first().json; \nlet fileIds = [];\n\nconst fileArray = mergeItem.data;\n\nif (Array.isArray(fileArray) && fileArray.length > 0) {\n    // 🛑 IMPORTANTE: Retornar um ARRAY de IDs, não uma STRING.\n    fileIds = fileArray\n        .map(file => file.id)\n        .filter(id => id); \n}\n\n// Se não houver IDs, não retorna nada, pulando o nó Delete.\nif (fileIds.length === 0) {\n    return []; \n}\n\n// Retorna uma lista de itens, cada um contendo um único ID\nreturn fileIds.map(id => ({\n    json: {\n        fileId: id\n    }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        -144
+      ],
+      "id": "50c09991-80d6-4bc5-a6f0-4b378f6e788b",
+      "name": "Extrair IDs para Exclusão"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "fileId",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1792,
+        -144
+      ],
+      "id": "6822aeed-4ebc-420f-b78b-805160d05500",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1792,
+        80
+      ],
+      "id": "719bb01c-d17e-4126-a29b-9f886b0c2277",
+      "name": "Wait",
+      "webhookId": "56215324-0373-409d-83c7-aa817dacd9db"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "1hoGH3jg5rtCLhTsaD3nomsnJyWQryZAP",
+          "mode": "list",
+          "cachedResultName": "corpoEmail.txt",
+          "cachedResultUrl": "https://drive.google.com/file/d/1hoGH3jg5rtCLhTsaD3nomsnJyWQryZAP/view?usp=drivesdk"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -448,
+        224
+      ],
+      "id": "46edac7d-b8b1-401f-b638-3512a20826c6",
+      "name": "Download corpoEmail",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "RZpdk25aeE3qhD3a",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Se houver arquivos baixados, transforma em campos binários para SMTP\nitems.forEach(item => {\n  if (item.json.data && Array.isArray(item.json.data)) {\n    const files = item.json.data.filter(f => f && f.binary && f.binary.data);\n    if (files.length > 0) {\n      item.binary = {};\n      files.forEach((f, index) => {\n        // cada anexo vira data, data_1, data_2...\n        item.binary[`data${index === 0 ? '' : '_' + index}`] = f.binary.data;\n      });\n    }\n  }\n});\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        -128
+      ],
+      "id": "fdc373a2-d624-402c-b13c-64b6fa5b3834",
+      "name": "RemoveCampoAnexo"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Cron Mensal1": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. Ler Moradores (Google Sheets)1": {
+      "main": [
+        [
+          {
+            "node": "2. Split por Apto1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Split por Apto1": {
+      "main": [
+        [
+          {
+            "node": "Search files and folders1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "3. Montar Assunto e Corpo1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Montar Assunto e Corpo1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "4. Enviar Email (SMTP)1": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Log Envio CSV1": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "5. Log Envio CSV1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extrair IDs para Exclusão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search files and folders1": {
+      "main": [
+        [
+          {
+            "node": "Download file1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file1": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "RemoveCampoAnexo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "1. Ler Moradores (Google Sheets)1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Download corpoEmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair IDs para Exclusão": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Delete a file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "2. Split por Apto1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download corpoEmail": {
+      "main": [
+        []
+      ]
+    },
+    "RemoveCampoAnexo": {
+      "main": [
+        [
+          {
+            "node": "4. Enviar Email (SMTP)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "3e70e451-266a-4280-bd1d-4ebf3b929ba5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3d9c7acb6abd5d1ceeda7922958bc652dec887a3230b156220a5164feed8942a"
+  },
+  "id": "roQ04QP4nC6N57QN",
+  "tags": []
+}
